@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang='en'>
+    <head>
+        <title>Hextris - OtakuNexa Edition</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0, minimal-ui"/>
+        
+        <link href='https://fonts.googleapis.com/css?family=Exo+2' rel='stylesheet' type='text/css'>
+        <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
+        <link rel="stylesheet" href="style/fa/css/font-awesome.min.css">
+        <link rel="stylesheet" type="text/css" href="style/style.css">
+        
+        <script src="vendor/hammer.min.js"></script>
+        <script src="vendor/js.cookie.js"></script>
+        <script src="vendor/jsonfn.min.js"></script>
+        <script src="vendor/keypress.min.js"></script>
+        <script src="vendor/jquery.js"></script>
+        <script src="vendor/sweet-alert.min.js"></script>
+        
+        <script src="js/save-state.js"></script>
+        <script src="js/view.js"></script>
+        <script src="js/wavegen.js"></script>
+        <script src="js/math.js"></script>
+        <script src="js/Block.js"></script>
+        <script src="js/Hex.js"></script>
+        <script src="js/Text.js"></script>
+        <script src="js/comboTimer.js"></script>
+        <script src="js/checking.js"></script>
+        <script src='js/update.js'></script>
+        <script src='js/render.js'></script>
+        <script src="js/input.js"></script>
+        <script src="js/main.js"></script>
+        <script src="js/initialization.js"></script>
+        
+        <style>
+            /* --- GLOBAL THEME --- */
+            body {
+                background: #0f0c29;
+                background: radial-gradient(circle at center, #24243e 0%, #0f0c29 100%);
+                color: white;
+                font-family: 'Rajdhani', 'Exo 2', sans-serif;
+                overflow: hidden;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                height: 100vh;
+                margin: 0;
+            }
+
+            #canvas {
+                box-shadow: 0 0 40px rgba(0, 210, 255, 0.2);
+                border-radius: 50%;
+                margin: auto;
+                display: block;
+                z-index: 10;
+                position: relative;
+            }
+
+            /* --- ADS SLOTS --- */
+            .ad-slot {
+                position: fixed;
+                left: 0;
+                width: 100%;
+                /* Height auto to fit your 160x300 ads if needed, usually 50px for mobile */
+                height: auto; 
+                min-height: 60px; 
+                background: rgba(0,0,0,0.8);
+                border-bottom: 2px solid #00d2ff;
+                z-index: 9999;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                overflow: hidden;
+            }
+            .ad-top { top: 0; }
+            .ad-bottom { bottom: 0; border-bottom: none; border-top: 2px solid #ff00de; }
+            
+            /* Container to hold the JS ad output */
+            .ad-container {
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                transform: scale(0.8); /* Scale down if ads are too big */
+            }
+
+            /* --- CONTROLS --- */
+            #mobile-controls {
+                position: fixed;
+                bottom: 80px; /* Above the bottom ad */
+                left: 0;
+                width: 100%;
+                display: flex;
+                justify-content: space-between;
+                padding: 0 40px;
+                box-sizing: border-box;
+                z-index: 9000;
+                pointer-events: none;
+            }
+            .control-btn {
+                pointer-events: auto;
+                width: 75px;
+                height: 75px;
+                background: rgba(255, 255, 255, 0.05);
+                border: 2px solid rgba(255, 255, 255, 0.3);
+                border-radius: 50%;
+                color: #fff;
+                font-size: 28px;
+                display: flex; justify-content: center; align-items: center;
+                backdrop-filter: blur(5px);
+            }
+            .control-btn:active { background: rgba(0, 210, 255, 0.4); transform: scale(0.9); }
+
+            /* --- ENERGY CARD --- */
+            .energy-box {
+                background: linear-gradient(135deg, rgba(16, 21, 56, 0.95), rgba(36, 36, 62, 0.98));
+                border: 1px solid rgba(0, 210, 255, 0.3);
+                box-shadow: 0 0 20px rgba(0, 210, 255, 0.15);
+                padding: 15px;
+                margin-top: 10px;
+                border-radius: 12px;
+                text-align: center;
+                max-width: 280px;
+                margin-left: auto;
+                margin-right: auto;
+            }
+
+            .energy-value {
+                font-size: 52px; color: #fff; font-weight: 800;
+                text-shadow: 0 0 15px rgba(0, 210, 255, 0.8);
+                margin-bottom: 5px;
+            }
+
+            .energy-code {
+                background: #000;
+                color: #555; 
+                font-family: 'Courier New', monospace;
+                padding: 10px;
+                word-break: break-all;
+                margin: 10px 0;
+                border-radius: 6px;
+                border: 1px solid #333;
+                font-size: 12px;
+                filter: blur(4px); 
+                transition: all 0.5s;
+                user-select: none;
+                pointer-events: none;
+            }
+            
+            .energy-code.unlocked {
+                color: #00ff9d;
+                filter: blur(0px);
+                user-select: text;
+                pointer-events: auto;
+            }
+
+            .action-btn {
+                background: linear-gradient(90deg, #ff00cc, #333399);
+                color: white;
+                border: none;
+                padding: 12px 20px;
+                border-radius: 6px;
+                font-weight: bold;
+                cursor: pointer;
+                width: 100%;
+                font-size: 14px;
+                text-transform: uppercase;
+                box-shadow: 0 4px 15px rgba(255, 0, 204, 0.3);
+                transition: all 0.2s;
+                animation: pulseBtn 2s infinite;
+            }
+            .action-btn:active { transform: scale(0.96); }
+            
+            .action-btn.processing {
+                background: #ffcc00;
+                color: #000;
+                box-shadow: 0 0 15px #ffcc00;
+                animation: none;
+            }
+
+            .action-btn.ready-to-copy {
+                background: #28a745;
+                box-shadow: 0 0 15px #28a745;
+                animation: none;
+            }
+
+            @keyframes pulseBtn {
+                0% { box-shadow: 0 0 0 0 rgba(255, 0, 204, 0.7); }
+                70% { box-shadow: 0 0 0 10px rgba(255, 0, 204, 0); }
+                100% { box-shadow: 0 0 0 0 rgba(255, 0, 204, 0); }
+            }
+            @keyframes flicker { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+            #highScoreInGameText { top: 60px; color: rgba(255,255,255,0.4); }
+            #gameoverscreen { background: rgba(0,0,0,0.85); }
+            #gameOverBox { font-family: 'Rajdhani', sans-serif; letter-spacing: 5px; text-shadow: 0 0 20px red; }
+        </style>
+    </head>
+    <body>
+        
+        <div class="ad-slot ad-top">
+            <div class="ad-container">
+                <script type="text/javascript">
+                    atOptions = {
+                        'key' : '7c6464dacdeac0171373811935f6befd',
+                        'format' : 'iframe',
+                        'height' : 300,
+                        'width' : 160,
+                        'params' : {}
+                    };
+                </script>
+                <script type="text/javascript" src="https://www.highperformanceformat.com/7c6464dacdeac0171373811935f6befd/invoke.js"></script>
+            </div>
+        </div>
+
+        <canvas id="canvas"></canvas>
+
+        <div id="mobile-controls">
+            <div id="btn-left" class="control-btn"><i class="fa fa-chevron-left"></i></div>
+            <div id="btn-right" class="control-btn"><i class="fa fa-chevron-right"></i></div>
+        </div>
+
+        <div id="overlay" class="faded overlay"></div>
+        <div id='startBtn'></div>
+        <div id="helpScreen" class='unselectable'><div id='inst_main_body'></div></div>
+        <img id="openSideBar" class='helpText' src="./images/btn_help.svg" style="display:none;"/>
+        <div class="faded overlay"></div>
+        <img id="pauseBtn" src="./images/btn_pause.svg" style="display:none;"/>
+        <img id='restartBtn' src="./images/btn_restart.svg" style="display:none;"/>
+        
+        <div id='highScoreInGameText'>
+            <div id='highScoreInGameTextHeader'>HIGH SCORE</div><div id='currentHighScore'>0</div>
+        </div>
+        
+        <div id="gameoverscreen">
+            <div id='container'>
+                <div id='gameOverBox' class='GOTitle'>GAME OVER</div>
+                <div id='cScore'>0</div>
+                
+                <div class="energy-box">
+                    <div class="energy-title">Energy Mined</div>
+                    <div id="energyVal" class="energy-value">?</div>
+                    
+                    <div style="font-size:10px; color:#888; margin-top:5px;">Secure Token (Valid 10m):</div>
+                    <div id="codeVal" class="energy-code">LOCKED</div>
+                    
+                    <button id="actionBtn" class="action-btn" data-state="locked">
+                        <i class="fa fa-play-circle"></i> UNLOCK REWARD (AD)
+                    </button>
+                </div>
+
+                <div id='buttonCont' style="margin-top: 15px;">
+                    <a id="restartBtnCustom" style="color: #00d2ff; text-decoration: none; cursor: pointer; font-size: 16px; font-weight:bold; letter-spacing:1px;">
+                        <i class="fa fa-refresh"></i> TRY AGAIN
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="ad-slot ad-bottom">
+            <div class="ad-container">
+                <script type="text/javascript">
+                    atOptions = {
+                        'key' : '7c6464dacdeac0171373811935f6befd',
+                        'format' : 'iframe',
+                        'height' : 300,
+                        'width' : 160,
+                        'params' : {}
+                    };
+                </script>
+                <script type="text/javascript" src="https://www.highperformanceformat.com/7c6464dacdeac0171373811935f6befd/invoke.js"></script>
+            </div>
+        </div>
+
+        <script src="https://pl28420257.effectivegatecpm.com/4f/91/15/4f91152a7c8f23d8314a501181c8c932.js"></script>
+
+        <script>
+            // --- 1. CONTROLS ---
+            function simulateKey(keyCode, type) {
+                var evt = document.createEvent("HTMLEvents");
+                evt.initEvent(type, true, false);
+                evt.keyCode = keyCode;
+                document.dispatchEvent(evt);
+                if(window.Input) window.Input.keys[keyCode] = (type === 'keydown');
+            }
+            ['btn-left', 'btn-right'].forEach(id => {
+                let btn = document.getElementById(id);
+                let key = (id === 'btn-left') ? 37 : 39;
+                btn.addEventListener('touchstart', (e) => { e.preventDefault(); simulateKey(key, 'keydown'); });
+                btn.addEventListener('touchend', (e) => { e.preventDefault(); simulateKey(key, 'keyup'); });
+                btn.addEventListener('mousedown', (e) => { simulateKey(key, 'keydown'); });
+                btn.addEventListener('mouseup', (e) => { simulateKey(key, 'keyup'); });
+            });
+            document.getElementById('restartBtnCustom').addEventListener('click', function(){
+                if(typeof reset === 'function') reset(); else location.reload(); 
+            });
+
+            // --- 2. LOGIC ---
+            setInterval(function() {
+                var goScreen = document.getElementById('gameoverscreen');
+                var style = window.getComputedStyle(goScreen);
+                if (style.display === 'none' || style.opacity < 0.1) {
+                    var btn = document.getElementById('actionBtn');
+                    if (btn.getAttribute("data-state") !== "locked") {
+                        resetUI();
+                    }
+                } else {
+                    var currentEnergyVal = document.getElementById('energyVal').innerText;
+                    if(currentEnergyVal === '?') {
+                         var tempScore = parseInt(document.getElementById('cScore').innerText) || 0;
+                         var tempEnergy = 1;
+                         if(tempScore > 100) tempEnergy = 2;
+                         if(tempScore > 500) tempEnergy = 3;
+                         if(tempScore > 1000) tempEnergy = 4;
+                         if(tempScore > 0) document.getElementById('energyVal').innerText = tempEnergy;
+                    }
+                }
+            }, 500);
+
+            function resetUI() {
+                var codeEl = document.getElementById('codeVal');
+                var btn = document.getElementById('actionBtn');
+                var energyEl = document.getElementById('energyVal');
+
+                codeEl.innerText = "LOCKED";
+                codeEl.classList.remove('unlocked');
+                energyEl.innerText = "?"; 
+
+                btn.innerHTML = '<i class="fa fa-play-circle"></i> UNLOCK REWARD (AD)';
+                btn.className = 'action-btn'; 
+                btn.setAttribute("data-state", "locked");
+            }
+
+            function generateCodeAndEnergy() {
+                var scoreEl = document.getElementById('cScore');
+                var score = parseInt(scoreEl ? scoreEl.innerText : "0") || 0;
+                
+                var energy = 1;
+                if(score > 100) energy = 2;
+                if(score > 500) energy = 3;
+                if(score > 1000) energy = 4;
+                
+                document.getElementById('energyVal').innerText = energy;
+
+                var now = Date.now();
+                var tenMinLater = now + (10 * 60 * 1000); 
+                
+                var genStr = btoa(now.toString()).replace(/=/g, '');
+                var expStr = btoa(tenMinLater.toString()).replace(/=/g, '');
+                
+                var finalCode = `NEXA-0B${genStr}-4E${expStr}-${energy}`;
+                document.getElementById('codeVal').innerText = finalCode;
+                
+                return finalCode;
+            }
+
+            // --- 3. CLICK & AD HANDLER (Fixed Copy) ---
+            document.getElementById('actionBtn').addEventListener('click', function() {
+                var btn = this;
+                var state = btn.getAttribute("data-state");
+                var codeEl = document.getElementById('codeVal');
+
+                if (state === "locked") {
+                    // --- PHASE 1: UNLOCK & SHOW AD ---
+                    generateCodeAndEnergy();
+
+                    btn.innerHTML = "<i class='fa fa-circle-o-notch fa-spin'></i> VERIFYING...";
+                    btn.classList.add('processing');
+                    btn.setAttribute("data-state", "processing");
+
+                    setTimeout(function() {
+                        // >>> OPEN YOUR SMART LINK <<<
+                        window.open("https://www.effectivegatecpm.com/v5f8qkie7p?key=59b0901196805e8037654b7cec244472", "_blank");
+
+                        btn.innerHTML = "<i class='fa fa-copy'></i> COPY CODE";
+                        btn.classList.remove('processing');
+                        btn.classList.add('ready-to-copy');
+                        btn.setAttribute("data-state", "unlocked");
+                        
+                        codeEl.classList.add('unlocked');
+
+                    }, 800);
+
+                } else if (state === "unlocked") {
+                    // --- PHASE 2: COPY CODE ---
+                    var code = codeEl.innerText;
+                    
+                    // --- ROBUST COPY METHOD (No Clipboard API Dependency) ---
+                    // This method works on http, https, and webviews
+                    var textArea = document.createElement("textarea");
+                    textArea.value = code;
+                    
+                    // Style to be invisible but selectable
+                    textArea.style.position = "fixed";
+                    textArea.style.left = "0";
+                    textArea.style.top = "0";
+                    textArea.style.width = "2em";
+                    textArea.style.height = "2em";
+                    textArea.style.padding = "0";
+                    textArea.style.border = "none";
+                    textArea.style.outline = "none";
+                    textArea.style.boxShadow = "none";
+                    textArea.style.background = "transparent";
+                    
+                    document.body.appendChild(textArea);
+                    textArea.focus();
+                    textArea.select();
+                    
+                    try {
+                        var successful = document.execCommand('copy');
+                        if (successful) {
+                            showCopiedFeedback(btn);
+                        } else {
+                            alert("Copy failed. Please manually copy: " + code);
+                        }
+                    } catch (err) {
+                        alert("Manual Copy: " + code);
+                    }
+                    document.body.removeChild(textArea);
+                }
+            });
+
+            function showCopiedFeedback(btn) {
+                btn.innerHTML = "<i class='fa fa-check'></i> COPIED!";
+                if(typeof swal === "function") {
+                    swal({ title: "Success!", text: "Token Copied!", type: "success", timer: 1500, showConfirmButton: false });
+                }
+            }
+        </script>
+    </body>
+</html>
