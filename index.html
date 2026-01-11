@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+ <!DOCTYPE html>
 <html lang='en'>
     <head>
         <title>Hextris - OtakuNexa Edition</title>
@@ -31,6 +31,11 @@
         <script src="js/main.js"></script>
         <script src="js/initialization.js"></script>
         
+        <!-- CryptoJS for HMAC-SHA256 -->
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+        
+        <script type='text/javascript' src='//pl21004149.effectivegatecpm.com/36/ee/47/36ee47f335120a7c044c581c60072bb8.js'></script>
+        
         <style>
             /* --- GLOBAL THEME --- */
             body {
@@ -41,52 +46,32 @@
                 overflow: hidden;
                 display: flex;
                 flex-direction: column;
-                justify-content: center;
-                align-items: center;
                 height: 100vh;
                 margin: 0;
+                padding: 0;
+            }
+
+            #game-wrapper {
+                flex: 1;
+                position: relative;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                overflow: hidden;
+                width: 100%;
             }
 
             #canvas {
                 box-shadow: 0 0 40px rgba(0, 210, 255, 0.2);
                 border-radius: 50%;
-                margin: auto;
-                display: block;
                 z-index: 10;
                 position: relative;
             }
 
-            /* --- ADS SLOTS --- */
-            .ad-slot {
-                position: fixed;
-                left: 0;
-                width: 100%;
-                /* Height auto to fit your 160x300 ads if needed, usually 50px for mobile */
-                height: auto; 
-                min-height: 60px; 
-                background: rgba(0,0,0,0.8);
-                border-bottom: 2px solid #00d2ff;
-                z-index: 9999;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                overflow: hidden;
-            }
-            .ad-top { top: 0; }
-            .ad-bottom { bottom: 0; border-bottom: none; border-top: 2px solid #ff00de; }
-            
-            /* Container to hold the JS ad output */
-            .ad-container {
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                transform: scale(0.8); /* Scale down if ads are too big */
-            }
-
             /* --- CONTROLS --- */
             #mobile-controls {
-                position: fixed;
-                bottom: 80px; /* Above the bottom ad */
+                position: absolute;
+                bottom: 20px;
                 left: 0;
                 width: 100%;
                 display: flex;
@@ -95,6 +80,23 @@
                 box-sizing: border-box;
                 z-index: 9000;
                 pointer-events: none;
+                transition: bottom 0.3s;
+            }
+            
+            /* Adjust controls when banner ad is visible - handled by JavaScript */
+            #mobile-controls.banner-ad-visible {
+                bottom: 70px;
+            }
+            
+            @media screen and (max-width: 480px) {
+                #mobile-controls {
+                    bottom: 15px;
+                    padding: 0 20px;
+                }
+                
+                #mobile-controls.banner-ad-visible {
+                    bottom: 65px;
+                }
             }
             .control-btn {
                 pointer-events: auto;
@@ -110,170 +112,584 @@
             }
             .control-btn:active { background: rgba(0, 210, 255, 0.4); transform: scale(0.9); }
 
-            /* --- ENERGY CARD --- */
-            .energy-box {
-                background: linear-gradient(135deg, rgba(16, 21, 56, 0.95), rgba(36, 36, 62, 0.98));
-                border: 1px solid rgba(0, 210, 255, 0.3);
-                box-shadow: 0 0 20px rgba(0, 210, 255, 0.15);
-                padding: 15px;
-                margin-top: 10px;
-                border-radius: 12px;
-                text-align: center;
-                max-width: 280px;
-                margin-left: auto;
-                margin-right: auto;
-            }
-
-            .energy-value {
-                font-size: 52px; color: #fff; font-weight: 800;
-                text-shadow: 0 0 15px rgba(0, 210, 255, 0.8);
-                margin-bottom: 5px;
-            }
-
-            .energy-code {
-                background: #000;
-                color: #555; 
-                font-family: 'Courier New', monospace;
-                padding: 10px;
-                word-break: break-all;
-                margin: 10px 0;
-                border-radius: 6px;
-                border: 1px solid #333;
-                font-size: 12px;
-                filter: blur(4px); 
-                transition: all 0.5s;
-                user-select: none;
+            /* --- GAME OVER SCREEN - FIXED --- */
+            #gameoverscreen { 
+                background: rgba(15, 12, 41, 0.95);
+                z-index: 10000; 
+                position: absolute;
+                top: 0; left: 0; width: 100%; height: 100%;
+                display: none; /* HIDDEN BY DEFAULT */
+                opacity: 0;
+                transition: opacity 0.3s;
                 pointer-events: none;
             }
             
-            .energy-code.unlocked {
-                color: #00ff9d;
-                filter: blur(0px);
-                user-select: text;
+            #gameoverscreen.show {
+                display: flex !important;
+                opacity: 1;
                 pointer-events: auto;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
             }
 
+            #container {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                width: 100%;
+                max-width: 500px;
+                max-height: 95vh;
+                overflow-y: auto;
+                padding: 15px 10px;
+                box-sizing: border-box;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            .GOTitle {
+                font-size: clamp(28px, 6vw, 40px);
+                font-family: 'Rajdhani', sans-serif; 
+                letter-spacing: 3px; 
+                text-shadow: 0 0 20px red; 
+                margin-top: 5px;
+                margin-bottom: 0;
+                text-align: center;
+            }
+
+            /* FIX FOR SCORE VISIBILITY */
+            #cScore {
+                font-size: clamp(40px, 10vw, 60px);
+                font-weight: bold;
+                color: #fff;
+                text-shadow: 0 0 10px #00d2ff;
+                margin: 8px 0 15px 0;
+                display: block !important;
+                text-align: center;
+            }
+
+            /* --- GAME OVER AD --- */
+            .game-over-ad-container {
+                width: 100%;
+                max-width: 300px;
+                height: 250px;
+                min-height: 250px;
+                background: rgba(0,0,0,0.5);
+                margin: 8px auto;
+                border: 1px solid #ff00de;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                position: relative;
+                flex-shrink: 0;
+                border-radius: 8px;
+                overflow: hidden;
+            }
+            
+            .game-over-ad-container iframe {
+                max-width: 100%;
+                max-height: 100%;
+            }
+
+            /* --- ENERGY/REWARD CARD --- */
+            .energy-box {
+                padding: 12px; 
+                margin: 8px auto;
+                border-radius: 12px;
+                text-align: center;
+                width: 100%;
+                max-width: 280px;
+                border: 1px solid rgba(0, 210, 255, 0.3);
+                background: linear-gradient(135deg, rgba(16, 21, 56, 0.95), rgba(36, 36, 62, 0.98));
+                position: relative;
+                box-sizing: border-box;
+            }
+
+            .energy-label {
+                font-size: clamp(11px, 2.5vw, 12px);
+                color: #ccc;
+                margin-bottom: 4px;
+            }
+            
+            .energy-value { 
+                font-size: clamp(24px, 6vw, 32px); 
+                color: #fff; 
+                font-weight: 800; 
+                margin-bottom: 8px;
+                text-shadow: 0 0 10px #00d2ff;
+            }
+            
+            .energy-code { 
+                background: #000; 
+                color: #555; 
+                padding: 6px 8px; 
+                font-size: clamp(9px, 2vw, 11px); 
+                font-family: monospace;
+                filter: blur(4px); 
+                margin: 8px 0;
+                border-radius: 4px;
+                transition: all 0.3s;
+                word-break: break-all;
+            }
+            
+            .energy-code.unlocked { 
+                color: #00ff9d; 
+                filter: blur(0px); 
+                pointer-events: auto; 
+                user-select: text;
+                background: rgba(0, 255, 157, 0.1);
+            }
+
+            /* BUTTON FIXES */
             .action-btn {
                 background: linear-gradient(90deg, #ff00cc, #333399);
                 color: white;
                 border: none;
-                padding: 12px 20px;
+                padding: 10px 12px;
                 border-radius: 6px;
                 font-weight: bold;
                 cursor: pointer;
                 width: 100%;
-                font-size: 14px;
-                text-transform: uppercase;
-                box-shadow: 0 4px 15px rgba(255, 0, 204, 0.3);
-                transition: all 0.2s;
+                font-size: clamp(14px, 3.5vw, 16px);
                 animation: pulseBtn 2s infinite;
+                transition: transform 0.1s;
+                touch-action: manipulation;
             }
-            .action-btn:active { transform: scale(0.96); }
+            
+            .action-btn:active {
+                transform: scale(0.95);
+            }
             
             .action-btn.processing {
-                background: #ffcc00;
-                color: #000;
-                box-shadow: 0 0 15px #ffcc00;
                 animation: none;
+                opacity: 0.8;
             }
-
-            .action-btn.ready-to-copy {
-                background: #28a745;
-                box-shadow: 0 0 15px #28a745;
-                animation: none;
+            
+            #restartBtnCustom {
+                background: rgba(0, 0, 0, 0.3);
+                color: #00d2ff;
+                text-decoration: none;
+                cursor: pointer;
+                font-size: clamp(16px, 4vw, 20px);
+                font-weight: bold;
+                letter-spacing: 1px;
+                padding: 12px 25px;
+                border-radius: 8px;
+                border: 1px solid rgba(0, 210, 255, 0.3);
+                margin-top: 12px;
+                transition: all 0.2s;
+                display: inline-block;
+                touch-action: manipulation;
             }
-
+            
+            #restartBtnCustom:hover {
+                background: rgba(0, 210, 255, 0.1);
+            }
+            
+            #restartBtnCustom:active {
+                transform: scale(0.95);
+            }
+            
+            /* Mobile specific adjustments */
+            @media screen and (max-width: 480px) {
+                #container {
+                    padding: 10px 8px;
+                    max-height: 98vh;
+                }
+                
+                .GOTitle {
+                    letter-spacing: 2px;
+                    margin-top: 0;
+                }
+                
+                #cScore {
+                    margin: 5px 0 12px 0;
+                }
+                
+                .game-over-ad-container {
+                    height: 200px;
+                    min-height: 200px;
+                    margin: 6px auto;
+                }
+                
+                .energy-box {
+                    padding: 10px;
+                    margin: 6px auto;
+                }
+                
+                #restartBtnCustom {
+                    padding: 10px 20px;
+                    margin-top: 10px;
+                }
+            }
+            
             @keyframes pulseBtn {
                 0% { box-shadow: 0 0 0 0 rgba(255, 0, 204, 0.7); }
                 70% { box-shadow: 0 0 0 10px rgba(255, 0, 204, 0); }
                 100% { box-shadow: 0 0 0 0 rgba(255, 0, 204, 0); }
             }
-            @keyframes flicker { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 
-            #highScoreInGameText { top: 60px; color: rgba(255,255,255,0.4); }
-            #gameoverscreen { background: rgba(0,0,0,0.85); }
-            #gameOverBox { font-family: 'Rajdhani', sans-serif; letter-spacing: 5px; text-shadow: 0 0 20px red; }
+            #highScoreInGameText { 
+                top: 60px; 
+                color: rgba(255,255,255,0.4); 
+                position: absolute;
+                z-index: 100;
+            }
+            
+            /* --- GAMEPLAY BANNER AD --- */
+            #gameplay-banner-ad {
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                width: 100%;
+                min-height: 50px;
+                background: linear-gradient(135deg, rgba(15, 12, 41, 0.95), rgba(36, 36, 62, 0.95));
+                z-index: 5000;
+                display: none;
+                justify-content: center;
+                align-items: center;
+                border-top: 2px solid rgba(255, 0, 204, 0.5);
+                box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.5);
+            }
+            
+            #gameplay-banner-ad.show {
+                display: flex;
+            }
+            
+            #gameplay-banner-ad .banner-ad-container {
+                width: 100%;
+                max-width: 728px;
+                min-height: 50px;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                position: relative;
+                padding: 5px 25px 5px 5px;
+            }
+            
+            #gameplay-banner-ad .banner-ad-link {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                width: 100%;
+                height: 100%;
+                text-decoration: none;
+                color: #fff;
+                font-size: 12px;
+                text-align: center;
+                padding: 8px;
+            }
+            
+            #gameplay-banner-ad .banner-ad-link:hover {
+                opacity: 0.9;
+            }
+            
+            #gameplay-banner-ad .close-ad-btn {
+                position: absolute;
+                top: 5px;
+                right: 5px;
+                background: rgba(255, 255, 255, 0.2);
+                border: none;
+                color: white;
+                width: 22px;
+                height: 22px;
+                border-radius: 50%;
+                cursor: pointer;
+                font-size: 14px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 10;
+                font-weight: bold;
+                transition: background 0.2s;
+            }
+            
+            #gameplay-banner-ad .close-ad-btn:hover {
+                background: rgba(255, 255, 255, 0.3);
+            }
+            
+            #gameplay-banner-ad .close-ad-btn:active {
+                background: rgba(255, 255, 255, 0.4);
+                transform: scale(0.95);
+            }
+            
+            @media screen and (max-width: 480px) {
+                #gameplay-banner-ad {
+                    min-height: 50px;
+                }
+                
+                #gameplay-banner-ad .banner-ad-container {
+                    min-height: 50px;
+                    padding: 5px 20px 5px 5px;
+                }
+                
+                #gameplay-banner-ad .banner-ad-link {
+                    font-size: 11px;
+                    padding: 6px;
+                }
+            }
+            
+            /* --- INTERSTITIAL AD OVERLAY --- */
+            #interstitial-ad-overlay {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.95);
+                z-index: 20000;
+                display: none;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+            }
+            
+            #interstitial-ad-overlay.show {
+                display: flex;
+            }
+            
+            #interstitial-ad-overlay .interstitial-content {
+                background: rgba(15, 12, 41, 0.98);
+                padding: 20px;
+                border-radius: 12px;
+                max-width: 90%;
+                text-align: center;
+            }
+            
+            #interstitial-ad-overlay .skip-ad-btn {
+                margin-top: 15px;
+                padding: 10px 20px;
+                background: rgba(0, 210, 255, 0.3);
+                color: white;
+                border: 1px solid rgba(0, 210, 255, 0.5);
+                border-radius: 6px;
+                cursor: pointer;
+                font-size: 14px;
+            }
         </style>
     </head>
     <body>
         
-        <div class="ad-slot ad-top">
-            <div class="ad-container">
-                <script type="text/javascript">
-                    atOptions = {
-                        'key' : '7c6464dacdeac0171373811935f6befd',
-                        'format' : 'iframe',
-                        'height' : 300,
-                        'width' : 160,
-                        'params' : {}
-                    };
-                </script>
-                <script type="text/javascript" src="https://www.highperformanceformat.com/7c6464dacdeac0171373811935f6befd/invoke.js"></script>
+        <div id="game-wrapper">
+            <canvas id="canvas"></canvas>
+
+            <div id="mobile-controls">
+                <div id="btn-left" class="control-btn"><i class="fa fa-chevron-left"></i></div>
+                <div id="btn-right" class="control-btn"><i class="fa fa-chevron-right"></i></div>
             </div>
-        </div>
 
-        <canvas id="canvas"></canvas>
-
-        <div id="mobile-controls">
-            <div id="btn-left" class="control-btn"><i class="fa fa-chevron-left"></i></div>
-            <div id="btn-right" class="control-btn"><i class="fa fa-chevron-right"></i></div>
-        </div>
-
-        <div id="overlay" class="faded overlay"></div>
-        <div id='startBtn'></div>
-        <div id="helpScreen" class='unselectable'><div id='inst_main_body'></div></div>
-        <img id="openSideBar" class='helpText' src="./images/btn_help.svg" style="display:none;"/>
-        <div class="faded overlay"></div>
-        <img id="pauseBtn" src="./images/btn_pause.svg" style="display:none;"/>
-        <img id='restartBtn' src="./images/btn_restart.svg" style="display:none;"/>
-        
-        <div id='highScoreInGameText'>
-            <div id='highScoreInGameTextHeader'>HIGH SCORE</div><div id='currentHighScore'>0</div>
-        </div>
-        
-        <div id="gameoverscreen">
-            <div id='container'>
-                <div id='gameOverBox' class='GOTitle'>GAME OVER</div>
-                <div id='cScore'>0</div>
-                
-                <div class="energy-box">
-                    <div class="energy-title">Energy Mined</div>
-                    <div id="energyVal" class="energy-value">?</div>
-                    
-                    <div style="font-size:10px; color:#888; margin-top:5px;">Secure Token (Valid 10m):</div>
-                    <div id="codeVal" class="energy-code">LOCKED</div>
-                    
-                    <button id="actionBtn" class="action-btn" data-state="locked">
-                        <i class="fa fa-play-circle"></i> UNLOCK REWARD (AD)
-                    </button>
-                </div>
-
-                <div id='buttonCont' style="margin-top: 15px;">
-                    <a id="restartBtnCustom" style="color: #00d2ff; text-decoration: none; cursor: pointer; font-size: 16px; font-weight:bold; letter-spacing:1px;">
-                        <i class="fa fa-refresh"></i> TRY AGAIN
+            <div id="overlay" class="faded overlay"></div>
+            <div id='startBtn'></div>
+            <div id="helpScreen" class='unselectable'><div id='inst_main_body'></div></div>
+            <img id="openSideBar" class='helpText' src="./images/btn_help.svg" style="display:none;"/>
+            <div class="faded overlay"></div>
+            <img id="pauseBtn" src="./images/btn_pause.svg" style="display:none;"/>
+            <img id='restartBtn' src="./images/btn_restart.svg" style="display:none;"/>
+            
+            <div id='highScoreInGameText'>
+                <div id='highScoreInGameTextHeader'>HIGH SCORE</div><div id='currentHighScore'>0</div>
+            </div>
+            
+            <!-- Gameplay Banner Ad (Non-intrusive) -->
+            <div id="gameplay-banner-ad">
+                <button class="close-ad-btn" onclick="closeGameplayBannerAd()">×</button>
+                <div class="banner-ad-container">
+                    <a href="https://www.effectivegatecpm.com/c1uwemjtm?key=517520e57c07bd03cb5915c9a3f1c563" 
+                       target="_blank" 
+                       class="banner-ad-link"
+                       onclick="trackBannerAdClick()">
+                        <span>🎮 Discover Amazing Games - Click Here! 🎮</span>
                     </a>
                 </div>
             </div>
-        </div>
+            
+            <!-- Interstitial Ad Overlay (on game start) -->
+            <div id="interstitial-ad-overlay">
+                <div class="interstitial-content">
+                    <div id="interstitial-ad-slot"></div>
+                    <button class="skip-ad-btn" onclick="skipInterstitialAd()">Skip Ad</button>
+                </div>
+            </div>
+            
+            <div id="gameoverscreen">
+                <div id='container'>
+                    <div class='GOTitle'>GAME OVER</div>
+                    
+                    <div id='cScore'>0</div>
+                    
+                    <div class="game-over-ad-container">
+                        <script type="text/javascript">
+                            atOptions = {
+                                'key' : 'f8107b63813da3a14cff658c24e76979',
+                                'format' : 'iframe',
+                                'height' : 250,
+                                'width' : 300,
+                                'params' : {}
+                            };
+                        </script>
+                        <script type="text/javascript" src="https://www.highperformanceformat.com/f8107b63813da3a14cff658c24e76979/invoke.js"></script>
+                    </div>
 
-        <div class="ad-slot ad-bottom">
-            <div class="ad-container">
-                <script type="text/javascript">
-                    atOptions = {
-                        'key' : '7c6464dacdeac0171373811935f6befd',
-                        'format' : 'iframe',
-                        'height' : 300,
-                        'width' : 160,
-                        'params' : {}
-                    };
-                </script>
-                <script type="text/javascript" src="https://www.highperformanceformat.com/7c6464dacdeac0171373811935f6befd/invoke.js"></script>
+                    <div class="energy-box">
+                        <div class="energy-label">Energy Mined</div>
+                        <div id="energyVal" class="energy-value">0</div>
+                        
+                        <div class="energy-label">Reward Code</div>
+                        <div id="codeVal" class="energy-code">LOCKED</div>
+                        
+                        <button id="actionBtn" class="action-btn" data-state="locked">
+                            <i class="fa fa-play-circle"></i> UNLOCK REWARD
+                        </button>
+                    </div>
+
+                    <div id='buttonCont'>
+                        <a id="restartBtnCustom">
+                            <i class="fa fa-refresh"></i> PLAY AGAIN
+                        </a>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <script src="https://pl28420257.effectivegatecpm.com/4f/91/15/4f91152a7c8f23d8314a501181c8c932.js"></script>
-
         <script>
+            // --- GAME INITIALIZATION ---
+            document.addEventListener('DOMContentLoaded', function() {
+                // Ensure game over screen is hidden initially
+                document.getElementById('gameoverscreen').style.display = 'none';
+                
+                // Initialize ads
+                initializeAds();
+            });
+            
+            // --- AD MANAGEMENT ---
+            var gameplayBannerAdShown = false;
+            var interstitialAdShown = false;
+            var gameplayBannerAdTimer = null;
+            
+            function initializeAds() {
+                // Show gameplay banner ad after 10 seconds of gameplay
+                // This will be triggered when game starts
+            }
+            
+            function showGameplayBannerAd() {
+                if (gameplayBannerAdShown) return;
+                
+                var bannerAd = document.getElementById('gameplay-banner-ad');
+                if (bannerAd) {
+                    bannerAd.classList.add('show');
+                    gameplayBannerAdShown = true;
+                    
+                    // Adjust mobile controls position
+                    var mobileControls = document.getElementById('mobile-controls');
+                    if (mobileControls) {
+                        mobileControls.classList.add('banner-ad-visible');
+                    }
+                }
+            }
+            
+            function trackBannerAdClick() {
+                // Track banner ad clicks if needed
+                console.log('Banner ad clicked');
+            }
+            
+            function closeGameplayBannerAd() {
+                var bannerAd = document.getElementById('gameplay-banner-ad');
+                if (bannerAd) {
+                    bannerAd.classList.remove('show');
+                    
+                    // Reset mobile controls position
+                    var mobileControls = document.getElementById('mobile-controls');
+                    if (mobileControls) {
+                        mobileControls.classList.remove('banner-ad-visible');
+                    }
+                    
+                    // Clear timer if ad is closed manually
+                    if (gameplayBannerAdTimer) {
+                        clearTimeout(gameplayBannerAdTimer);
+                        gameplayBannerAdTimer = null;
+                    }
+                }
+            }
+            
+            // Make function globally accessible
+            window.closeGameplayBannerAd = closeGameplayBannerAd;
+            
+            function showInterstitialAd() {
+                if (interstitialAdShown) return;
+                
+                var overlay = document.getElementById('interstitial-ad-overlay');
+                if (overlay) {
+                    var adSlot = document.getElementById('interstitial-ad-slot');
+                    if (adSlot && !adSlot.innerHTML.trim()) {
+                        // Create interstitial ad using banner ad script
+                        var adScript = document.createElement('script');
+                        adScript.type = 'text/javascript';
+                        adScript.innerHTML = `
+                            atOptions = {
+                                'key' : 'f8107b63813da3a14cff658c24e76979',
+                                'format' : 'iframe',
+                                'height' : 250,
+                                'width' : 300,
+                                'params' : {}
+                            };
+                        `;
+                        adSlot.appendChild(adScript);
+                        
+                        var invokeScript = document.createElement('script');
+                        invokeScript.type = 'text/javascript';
+                        invokeScript.src = 'https://www.highperformanceformat.com/f8107b63813da3a14cff658c24e76979/invoke.js';
+                        adSlot.appendChild(invokeScript);
+                    }
+                    
+                    overlay.classList.add('show');
+                    interstitialAdShown = true;
+                    
+                    // Auto-close after 8 seconds (give user time to see ad)
+                    setTimeout(function() {
+                        skipInterstitialAd();
+                    }, 8000);
+                }
+            }
+            
+            function skipInterstitialAd() {
+                var overlay = document.getElementById('interstitial-ad-overlay');
+                if (overlay) {
+                    overlay.classList.remove('show');
+                }
+            }
+            
+            // Monitor game state to show ads at appropriate times
+            var originalInit = null;
+            if (typeof window.init === 'function') {
+                originalInit = window.init;
+                window.init = function(b) {
+                    if (originalInit) originalInit(b);
+                    
+                    // Show gameplay banner ad after game starts (with delay)
+                    if (b === 1 && !gameplayBannerAdShown) {
+                        gameplayBannerAdTimer = setTimeout(function() {
+                            showGameplayBannerAd();
+                        }, 10000); // Show after 10 seconds of gameplay
+                    }
+                };
+            }
+            
+            // Show interstitial ad on first game start
+            var gameStartCount = 0;
+            var checkGameStart = setInterval(function() {
+                try {
+                    if (typeof window.gameState !== 'undefined' && window.gameState === 1 && gameStartCount === 0) {
+                        gameStartCount++;
+                        // Show interstitial ad on first start
+                        setTimeout(function() {
+                            showInterstitialAd();
+                        }, 2000);
+                        clearInterval(checkGameStart);
+                    }
+                } catch(e) {
+                    // Silently fail
+                }
+            }, 500);
+
             // --- 1. CONTROLS ---
             function simulateKey(keyCode, type) {
                 var evt = document.createEvent("HTMLEvents");
@@ -282,149 +698,256 @@
                 document.dispatchEvent(evt);
                 if(window.Input) window.Input.keys[keyCode] = (type === 'keydown');
             }
+            
             ['btn-left', 'btn-right'].forEach(id => {
                 let btn = document.getElementById(id);
                 let key = (id === 'btn-left') ? 37 : 39;
-                btn.addEventListener('touchstart', (e) => { e.preventDefault(); simulateKey(key, 'keydown'); });
-                btn.addEventListener('touchend', (e) => { e.preventDefault(); simulateKey(key, 'keyup'); });
-                btn.addEventListener('mousedown', (e) => { simulateKey(key, 'keydown'); });
-                btn.addEventListener('mouseup', (e) => { simulateKey(key, 'keyup'); });
+                btn.addEventListener('touchstart', (e) => { 
+                    e.preventDefault(); 
+                    simulateKey(key, 'keydown'); 
+                });
+                btn.addEventListener('touchend', (e) => { 
+                    e.preventDefault(); 
+                    simulateKey(key, 'keyup'); 
+                });
+                btn.addEventListener('mousedown', (e) => { 
+                    simulateKey(key, 'keydown'); 
+                });
+                btn.addEventListener('mouseup', (e) => { 
+                    simulateKey(key, 'keyup'); 
+                });
+                btn.addEventListener('mouseleave', (e) => {
+                    simulateKey(key, 'keyup');
+                });
             });
-            document.getElementById('restartBtnCustom').addEventListener('click', function(){
-                if(typeof reset === 'function') reset(); else location.reload(); 
-            });
-
-            // --- 2. LOGIC ---
-            setInterval(function() {
-                var goScreen = document.getElementById('gameoverscreen');
-                var style = window.getComputedStyle(goScreen);
-                if (style.display === 'none' || style.opacity < 0.1) {
-                    var btn = document.getElementById('actionBtn');
-                    if (btn.getAttribute("data-state") !== "locked") {
-                        resetUI();
-                    }
+            
+            // Fixed Restart Button
+            document.getElementById('restartBtnCustom').addEventListener('click', function(e){
+                e.preventDefault();
+                e.stopPropagation();
+                hideGameOverScreen();
+                if(typeof reset === 'function') {
+                    reset();
                 } else {
-                    var currentEnergyVal = document.getElementById('energyVal').innerText;
-                    if(currentEnergyVal === '?') {
-                         var tempScore = parseInt(document.getElementById('cScore').innerText) || 0;
-                         var tempEnergy = 1;
-                         if(tempScore > 100) tempEnergy = 2;
-                         if(tempScore > 500) tempEnergy = 3;
-                         if(tempScore > 1000) tempEnergy = 4;
-                         if(tempScore > 0) document.getElementById('energyVal').innerText = tempEnergy;
-                    }
+                    location.reload();
                 }
-            }, 500);
+            });
 
-            function resetUI() {
-                var codeEl = document.getElementById('codeVal');
-                var btn = document.getElementById('actionBtn');
-                var energyEl = document.getElementById('energyVal');
-
-                codeEl.innerText = "LOCKED";
-                codeEl.classList.remove('unlocked');
-                energyEl.innerText = "?"; 
-
-                btn.innerHTML = '<i class="fa fa-play-circle"></i> UNLOCK REWARD (AD)';
-                btn.className = 'action-btn'; 
-                btn.setAttribute("data-state", "locked");
-            }
-
-            function generateCodeAndEnergy() {
-                var scoreEl = document.getElementById('cScore');
-                var score = parseInt(scoreEl ? scoreEl.innerText : "0") || 0;
+            // --- 2. GAME OVER SCREEN MANAGEMENT ---
+            function showGameOverScreen(score) {
+                var goScreen = document.getElementById('gameoverscreen');
+                var scoreElement = document.getElementById('cScore');
                 
+                // Update score display
+                if (scoreElement) {
+                    scoreElement.textContent = score;
+                }
+                
+                // Calculate energy based on score
                 var energy = 1;
                 if(score > 100) energy = 2;
                 if(score > 500) energy = 3;
                 if(score > 1000) energy = 4;
+                if(score > 5000) energy = 5;
                 
-                document.getElementById('energyVal').innerText = energy;
+                // Update energy display
+                document.getElementById('energyVal').textContent = energy;
+                
+                // Reset UI state
+                resetUI();
+                
+                // Show the game over screen
+                goScreen.style.display = 'flex';
+                setTimeout(function() {
+                    goScreen.classList.add('show');
+                }, 10);
+            }
+            
+            function hideGameOverScreen() {
+                var goScreen = document.getElementById('gameoverscreen');
+                goScreen.classList.remove('show');
+                setTimeout(function() {
+                    goScreen.style.display = 'none';
+                }, 300);
+            }
+            
+            // Game over is handled by gameOverDisplay() in js/view.js
+            // No need for additional monitoring
 
-                var now = Date.now();
-                var tenMinLater = now + (10 * 60 * 1000); 
+            // --- 3. REWARD LOGIC ---
+            function resetUI() {
+                var codeEl = document.getElementById('codeVal');
+                var btn = document.getElementById('actionBtn');
+                var energyEl = document.getElementById('energyVal');
                 
-                var genStr = btoa(now.toString()).replace(/=/g, '');
-                var expStr = btoa(tenMinLater.toString()).replace(/=/g, '');
+                codeEl.textContent = "LOCKED";
+                codeEl.classList.remove('unlocked');
                 
-                var finalCode = `NEXA-0B${genStr}-4E${expStr}-${energy}`;
-                document.getElementById('codeVal').innerText = finalCode;
+                btn.innerHTML = '<i class="fa fa-play-circle"></i> UNLOCK REWARD';
+                btn.className = 'action-btn'; 
+                btn.setAttribute("data-state", "locked");
+            }
+
+            // --- SECURE REWARD CODE GENERATION ---
+            const REWARD_SECRET_KEY = "NX26";
+            const REWARD_CODE_EXPIRY_MINUTES = 10; // Configurable expiry (5-10 minutes)
+            
+            /**
+             * Base64URL encode (URL-safe Base64)
+             */
+            function base64UrlEncode(str) {
+                return btoa(str)
+                    .replace(/\+/g, '-')
+                    .replace(/\//g, '_')
+                    .replace(/=/g, '');
+            }
+            
+            /**
+             * Generate a secure reward code with embedded energy
+             * @param {number} energy - Energy points to embed
+             * @returns {string} - Signed reward code in format: payloadBase64.signatureBase64
+             */
+           /**
+             * Generate a secure reward code with embedded energy
+             */
+            function generateSecureRewardCode(energy) {
+                // 1. Setup Time and Nonce
+                var now = Math.floor(Date.now() / 1000);
+                var expiry = now + (REWARD_CODE_EXPIRY_MINUTES * 60);
+                
+                var nonce = '';
+                var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+                for (var i = 0; i < 16; i++) {
+                    nonce += chars.charAt(Math.floor(Math.random() * chars.length));
+                }
+                
+                // 2. Create Payload
+                var payload = {
+                    e: energy,        
+                    iat: now,         
+                    exp: expiry,      
+                    n: nonce          
+                };
+                
+                // 3. Encode Payload (JSON -> Base64URL)
+                var payloadJson = JSON.stringify(payload);
+                // We use btoa() here because payloadJson is raw text
+                var payloadBase64 = btoa(payloadJson)
+                    .replace(/\+/g, '-')
+                    .replace(/\//g, '_')
+                    .replace(/=/g, '');
+                
+                // 4. Create Signature
+                var signature = CryptoJS.HmacSHA256(payloadBase64, REWARD_SECRET_KEY);
+                
+                // --- THE FIX IS HERE ---
+                // Get the standard Base64 string from CryptoJS
+                var rawSignatureBase64 = signature.toString(CryptoJS.enc.Base64);
+                
+                // Just replace characters to make it URL-safe. 
+                // DO NOT use btoa() again here!
+                var signatureBase64 = rawSignatureBase64
+                    .replace(/\+/g, '-')
+                    .replace(/\//g, '_')
+                    .replace(/=/g, '');
+                
+                // 5. Combine
+                var finalCode = payloadBase64 + '.' + signatureBase64;
                 
                 return finalCode;
             }
+            
+            /**
+             * Generate reward code with energy based on score
+             * Only call this after user action (ad open)
+             */
+            function generateCodeAndEnergy() {
+                // Get energy value from display
+                var energyEl = document.getElementById('energyVal');
+                var energy = parseInt(energyEl.textContent) || 1;
+                
+                // Generate secure code
+                var rewardCode = generateSecureRewardCode(energy);
+                
+                // Display code
+                document.getElementById('codeVal').textContent = rewardCode;
+                
+                return rewardCode;
+            }
 
-            // --- 3. CLICK & AD HANDLER (Fixed Copy) ---
-            document.getElementById('actionBtn').addEventListener('click', function() {
+            // Reward button handler
+            document.getElementById('actionBtn').addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                
                 var btn = this;
                 var state = btn.getAttribute("data-state");
                 var codeEl = document.getElementById('codeVal');
 
                 if (state === "locked") {
-                    // --- PHASE 1: UNLOCK & SHOW AD ---
-                    generateCodeAndEnergy();
-
-                    btn.innerHTML = "<i class='fa fa-circle-o-notch fa-spin'></i> VERIFYING...";
+                    btn.innerHTML = "<i class='fa fa-circle-o-notch fa-spin'></i> OPENING...";
                     btn.classList.add('processing');
-                    btn.setAttribute("data-state", "processing");
 
+                    // Open ad first, then generate code after ad opens
+                    var adWindow = window.open("https://www.effectivegatecpm.com/c1uwemjtm?key=517520e57c07bd03cb5915c9a3f1c563", "_blank");
+                    
+                    // Generate code only after ad action (user clicked to open ad)
                     setTimeout(function() {
-                        // >>> OPEN YOUR SMART LINK <<<
-                        window.open("https://www.effectivegatecpm.com/v5f8qkie7p?key=59b0901196805e8037654b7cec244472", "_blank");
-
+                        // Generate secure reward code
+                        generateCodeAndEnergy();
+                        
                         btn.innerHTML = "<i class='fa fa-copy'></i> COPY CODE";
                         btn.classList.remove('processing');
-                        btn.classList.add('ready-to-copy');
                         btn.setAttribute("data-state", "unlocked");
-                        
                         codeEl.classList.add('unlocked');
-
-                    }, 800);
+                    }, 500);
 
                 } else if (state === "unlocked") {
-                    // --- PHASE 2: COPY CODE ---
-                    var code = codeEl.innerText;
+                    var code = codeEl.textContent;
                     
-                    // --- ROBUST COPY METHOD (No Clipboard API Dependency) ---
-                    // This method works on http, https, and webviews
-                    var textArea = document.createElement("textarea");
-                    textArea.value = code;
-                    
-                    // Style to be invisible but selectable
-                    textArea.style.position = "fixed";
-                    textArea.style.left = "0";
-                    textArea.style.top = "0";
-                    textArea.style.width = "2em";
-                    textArea.style.height = "2em";
-                    textArea.style.padding = "0";
-                    textArea.style.border = "none";
-                    textArea.style.outline = "none";
-                    textArea.style.boxShadow = "none";
-                    textArea.style.background = "transparent";
-                    
-                    document.body.appendChild(textArea);
-                    textArea.focus();
-                    textArea.select();
-                    
-                    try {
-                        var successful = document.execCommand('copy');
-                        if (successful) {
-                            showCopiedFeedback(btn);
-                        } else {
-                            alert("Copy failed. Please manually copy: " + code);
-                        }
-                    } catch (err) {
-                        alert("Manual Copy: " + code);
+                    // Copy to clipboard
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        navigator.clipboard.writeText(code).then(function() {
+                            var originalText = btn.innerHTML;
+                            btn.innerHTML = "COPIED!";
+                            setTimeout(function() {
+                                btn.innerHTML = originalText;
+                            }, 2000);
+                        }).catch(function() {
+                            fallbackCopy(code);
+                        });
+                    } else {
+                        fallbackCopy(code);
                     }
-                    document.body.removeChild(textArea);
                 }
             });
-
-            function showCopiedFeedback(btn) {
-                btn.innerHTML = "<i class='fa fa-check'></i> COPIED!";
-                if(typeof swal === "function") {
-                    swal({ title: "Success!", text: "Token Copied!", type: "success", timer: 1500, showConfirmButton: false });
+            
+            function fallbackCopy(text) {
+                var textArea = document.createElement("textarea");
+                textArea.value = text;
+                textArea.style.position = "fixed";
+                textArea.style.opacity = "0";
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                
+                try {
+                    var successful = document.execCommand('copy');
+                    var btn = document.getElementById('actionBtn');
+                    var originalText = btn.innerHTML;
+                    btn.innerHTML = successful ? "COPIED!" : "PRESS CTRL+C";
+                    setTimeout(function() {
+                        btn.innerHTML = originalText;
+                    }, 2000);
+                } catch (err) {
+                    prompt("Copy to clipboard: Ctrl+C, Enter", text);
                 }
+                
+                document.body.removeChild(textArea);
             }
+            
+            // Initialize
+            resetUI();
         </script>
     </body>
-</html>
+</html> 

@@ -153,12 +153,75 @@ function gameOverDisplay() {
 	else {
 		$("#currentHighScore").text(highscores[0])
 	}
-	$("#gameoverscreen").fadeIn();
+	
+	// Hide gameplay banner ad when game over
+	if (typeof window.closeGameplayBannerAd === 'function') {
+		window.closeGameplayBannerAd();
+	}
+	
+	// Reset mobile controls position
+	var mobileControls = document.getElementById('mobile-controls');
+	if (mobileControls) {
+		mobileControls.classList.remove('banner-ad-visible');
+	}
+	
+	// Use the proper CSS class system to show game over screen
+	var goScreen = document.getElementById('gameoverscreen');
+	if (goScreen) {
+		goScreen.style.display = 'flex';
+		setTimeout(function() {
+			goScreen.classList.add('show');
+			
+			// Ensure ad container is visible and trigger ad load if needed
+			var adContainer = document.querySelector('.game-over-ad-container');
+			if (adContainer) {
+				adContainer.style.display = 'flex';
+				// Trigger a resize event to help ad scripts detect visibility
+				if (window.dispatchEvent) {
+					window.dispatchEvent(new Event('resize'));
+				}
+			}
+		}, 10);
+	}
+	
+	// Also ensure all child elements are visible
 	$("#buttonCont").fadeIn();
 	$("#container").fadeIn();
-	$("#socialShare").fadeIn();
-	$("#restart").fadeIn();
-    set_score_pos();
+	if ($("#socialShare").length) {
+		$("#socialShare").fadeIn();
+	}
+	if ($("#restart").length) {
+		$("#restart").fadeIn();
+	}
+	
+	// Update energy value based on score
+	var energy = 1;
+	if(score > 100) energy = 2;
+	if(score > 500) energy = 3;
+	if(score > 1000) energy = 4;
+	if(score > 5000) energy = 5;
+	
+	var energyEl = document.getElementById('energyVal');
+	if (energyEl) {
+		energyEl.textContent = energy;
+	}
+	
+	// Reset reward code UI
+	var codeEl = document.getElementById('codeVal');
+	var btn = document.getElementById('actionBtn');
+	if (codeEl) {
+		codeEl.textContent = "LOCKED";
+		codeEl.classList.remove('unlocked');
+	}
+	if (btn) {
+		btn.innerHTML = '<i class="fa fa-play-circle"></i> UNLOCK REWARD';
+		btn.className = 'action-btn';
+		btn.setAttribute("data-state", "locked");
+	}
+	
+    if (typeof set_score_pos === 'function') {
+        set_score_pos();
+    }
 }
 
 function updateHighScores (){
